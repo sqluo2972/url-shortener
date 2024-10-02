@@ -38,10 +38,17 @@ func ShortenURL(c *fiber.Ctx) error {
 	// implement rate limiting
 
 	r2 := database.CreateClient((1))
+	err := database.CheckRedisConnection(r2)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Cannot connect to the database:" + err.Error()})
+	}
+
 	defer r2.Close()
 	val, err := r2.Get(database.Ctx, c.IP()).Result()
 	if err == redis.Nil {
-		_ = r2.Set(database.Ctx, c.IP(), os.Getenv("API_QUOTA"), 30*60*time.Second).Err()
+		quota := os.Getenv("API_QUOTA")
+		quotaInt, _ := strconv.Atoi(quota)
+		_ = r2.Set(database.Ctx, c.IP(), quotaInt, 30*60*time.Second).Err()
 	} else {
 		valInt, _ := strconv.Atoi(val)
 		if valInt <= 0 {
